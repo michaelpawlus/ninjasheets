@@ -1,0 +1,30 @@
+# ninjasheets video configuration -- EXAMPLE / TEMPLATE
+#
+# Copy this file to `config/videos.yaml` (which is git-ignored) and fill in the
+# real video you want to process. The real config is kept local on purpose: the
+# public repo showcases the code, not pointers to specific competition videos.
+#
+#   cp config/videos.example.yaml config/videos.yaml
+#   # edit config/videos.yaml, then:
+#   uv run ninjasheets process --video-id <your_video_id>
+#
+# Per-video metadata is the source of truth (we deliberately do not rely on
+# parsing the YouTube title in Phase 1).
+
+videos:
+  - video_id: EXAMPLE_VIDEO_ID            # YouTube video ID, e.g. from the URL
+    video_url: "https://www.youtube.com/live/EXAMPLE_VIDEO_ID"
+    video_title: "TIER X | DIVISION GENDER | stage N | Season NN <Competition>"
+    event_name: "Season NN <Competition>"
+    season: "Season NN"
+    competition_name: "<Competition>"
+    tier: "Tier X"
+    division: "<Division>"
+    gender: "<Gender>"
+    stage: "Stage N"
+    course: "Stage N <Course>"
+    date: "YYYY-MM-DD"
+    timestamp_buffer_seconds: 5
+    expected_extraction_methods:
+      - transcript
+      - manual_review

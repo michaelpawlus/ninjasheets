@@ -1,0 +1,67 @@
+# Transcript announcement patterns for the WNL Season 11 commentary style.
+#
+# Discovered by inspecting the en-orig auto-captions of a real WNL preteen
+# division livestream. The dominant pattern is:
+#
+#   "Our next competitor is <Name>."
+#   "Our next contestant is <Name>."
+#   "Our next competitor, <Name>, is from <City>, <State>."
+#
+# followed shortly by gym cues ("representing the <Gym>", "supporting the
+# <Gym>", "with the <Gym>"). The capture group named `name` is the candidate.
+#
+# Case handling: only the *trigger words* are case-insensitive (scoped (?i:...)).
+# The athlete NAME and the City/State/Gym captures stay case-sensitive so they
+# must be Title Case proper nouns -- this both finds names in lowercased
+# captions and stops a name at the first sentence boundary (no '.' in token
+# class), avoiding "Kora. This Is Her".
+#
+# A name token is: an uppercase letter, then letters/apostrophe/hyphen.
+# (?:NAME_TOKEN)(?:\s+NAME_TOKEN){0,3} = 1..4 tokens (handles "Viatti Bey").
+
+announcement_patterns:
+  - name: our_next_competitor_is
+    regex: '(?i:\bour next (?:competitor|contestant|athlete))\s+is\s+(?P<name>[A-Z][a-zA-Z''’.-]*[a-z](?:\s+[A-Z][a-zA-Z''’.-]*[a-z]){0,3})'
+    weight: 1.0
+  - name: our_next_competitor_comma
+    regex: '(?i:\bour next (?:competitor|contestant|athlete)),\s+(?P<name>[A-Z][a-zA-Z''’.-]*[a-z](?:\s+[A-Z][a-zA-Z''’.-]*[a-z]){0,2}),'
+    weight: 0.85
+  - name: next_up_is
+    regex: '(?i:\bnext up),?\s+(?P<name>[A-Z][a-zA-Z''’.-]*[a-z](?:\s+[A-Z][a-zA-Z''’.-]*[a-z]){0,3})'
+    weight: 0.55
+
+# Gym / affiliation cues, searched in the context window after an announcement.
+# Trigger words case-insensitive; gym name must be Title Case, ends before a
+# lowercase word (which marks resumed commentary) or punctuation.
+gym_patterns:
+  - '(?i:representing|supporting)\s+(?:the\s+)?(?P<gym>[A-Z][A-Za-z0-9''&-]*(?:\s+[A-Z][A-Za-z0-9''&-]*){0,4})'
+  - '(?i:is here|here|is)\s+with(?:\s+for)?\s+(?:the\s+)?(?P<gym>[A-Z][A-Za-z0-9''&-]*(?:\s+[A-Z][A-Za-z0-9''&-]*){0,3}\s+(?:Ninja|Ninjas|Team))'
+
+# Location cue: "<...> is from <City>, <State>". Title Case only, so phrases
+# like "from right here in North Carolina" are skipped (lowercase words break
+# the city capture).
+location_patterns:
+  - '(?i:\bfrom)\s+(?P<city>[A-Z][a-z]+(?:[ .-][A-Z][a-z]+){0,2}),\s+(?P<state>[A-Z][a-z]+(?:\s+[A-Z][a-z]+)?)'
+
+# If the WHOLE candidate name is one of these, reject (commentary, not athlete).
+name_stopwords:
+  - "New"
+  - "She"
+  - "He"
+  - "Her"
+  - "His"
+  - "The"
+  - "Now"
+  - "Is"
+  - "Sorry"
+  - "This"
+  - "That"
+  - "What"
+
+# Filler words stripped from the START of a raw candidate name.
+name_leading_filler:
+  - "is"
+  - "new"
+  - "a"
+  - "the"
+  - "sorry"

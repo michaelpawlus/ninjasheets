@@ -1,0 +1,28 @@
+[project]
+name = "ninjasheets"
+version = "0.1.0"
+description = "A searchable, filterable index of World Ninja League athlete runs with direct YouTube timestamp links."
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+    "openpyxl>=3.1.5",
+    "pandas>=3.0.3",
+    "pyyaml>=6.0.3",
+    "rapidfuzz>=3.14.5",
+    "typer>=0.26.7",
+    "youtube-transcript-api>=1.2.4",
+    "yt-dlp>=2026.6.9",
+]
+
+[project.scripts]
+ninjasheets = "ninjasheets.cli:main"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/ninjasheets"]
+
+[dependency-groups]
+dev = ["pytest>=8.0"]

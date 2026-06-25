@@ -1,0 +1,22 @@
+# Python-generated files
+__pycache__/
+*.py[oc]
+build/
+dist/
+wheels/
+*.egg-info
+
+# Virtual environments
+.venv
+
+# Real, local-only config -- keep pointers to specific videos OUT of the public
+# repo. Ship config/videos.example.yaml instead; copy it to videos.yaml locally.
+/config/videos.yaml
+
+# Generated/raw data -- large, regenerable, and (for output) shared only to
+# private channels. Nothing under data/ is committed.
+/data/
+
+# Local scratch
+*.log
+err.log
