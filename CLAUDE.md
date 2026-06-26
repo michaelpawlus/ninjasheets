@@ -33,7 +33,7 @@ uv run ninjasheets process --video-id <id>          # → data/output/*.xlsx + d
 uv run ninjasheets process --video-id <id> --json   # machine-readable summary
 uv run ninjasheets list-videos
 uv run ninjasheets export --input <runs.csv> --output <out.xlsx>   # rebuild after manual review
-uv run pytest                                        # 12 tests
+uv run pytest                                        # 21 tests
 ```
 
 ## Architecture
@@ -41,9 +41,21 @@ uv run pytest                                        # 12 tests
 `src/ninjasheets/`: `youtube.py` (yt-dlp metadata/transcript) → `transcript.py`
 (json3 → normalized lines) → `parsing.py` (announcement detection, name
 cleaning, gym/location cues, dedup, confidence) → `pipeline.py` (orchestrate →
-run rows) → `export.py` (8-tab .xlsx). `cli.py` is the Typer entrypoint
+run rows) → `enrichment.py` (Phase 2: rapidfuzz athlete match + gym
+normalization) → `export.py` (8-tab .xlsx). `cli.py` is the Typer entrypoint
 (`--json` on commands per repo conventions). `config.py` loads `videos.yaml` +
 `extraction_patterns.yaml`.
+
+**Phase 2 enrichment (`enrichment.py`):** matches each run's name against a
+reference roster — the local sibling `WNL-Athlete-Video-Index` SQLite DB
+(`../WNL-Athlete-Video-Index/...`, override via `--athlete-index` /
+`NINJASHEETS_ATHLETE_INDEX_DB`) plus its `known_athletes.json` — with explicit
+confidence labels (`verified`/`high_confidence`/`medium_confidence`/
+`low_confidence`/`ambiguous`/`not_found`); never overmatches. Gyms normalize via
+`config/gym_aliases.csv`; manual `config/athlete_overrides.csv` (git-ignored;
+synthetic `.example` committed) yields `verified` and persists across runs. The
+index has no gym column today, but the roster loader introspects for one, so a
+matched athlete inherits an index gym automatically if/when it's added.
 
 **Tune the parser via config, not code:** announcement/gym/location regexes live
 in `config/extraction_patterns.yaml`. Patterns use scoped `(?i:...)` flags so
@@ -70,6 +82,8 @@ planned `--open` flag.
 
 ## Next steps
 
-See GitHub issues: Phase 2 enrichment (#1), Phase 3 batch/master (#2), Sheets
-publishing (#3), corrections workflow (#4), `--open` (#5), parser quality (#6),
-transcript-less fallbacks (#7).
+See GitHub issues: Phase 2 enrichment (#1, **done**), Phase 3 batch/master (#2),
+Sheets publishing (#3), corrections workflow (#4), `--open` (#5), parser quality
+(#6), transcript-less fallbacks (#7). Phase 2 match coverage scales with the
+reference roster: add more `competition_athletes` rows to the index (ideally with
+a gym column) to lift athlete/gym fill-in on future videos.

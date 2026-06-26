@@ -8,6 +8,7 @@ from pathlib import Path
 
 from . import youtube
 from .config import VideoConfig, load_patterns
+from .enrichment import enrich_result
 from .parsing import Candidate, extract_candidates
 from .transcript import TranscriptLine, load_json3
 from .utils import apply_timestamp_buffer, hhmmss, youtube_run_url
@@ -33,8 +34,16 @@ RUN_COLUMNS = [
     "athlete_name_raw",
     "athlete_name_clean",
     "gym_raw",
+    "gym_normalized",
     "city",
     "state",
+    "country",
+    "athlete_id",
+    "matched_athlete_name",
+    "athlete_match_status",
+    "athlete_match_score",
+    "enrichment_source",
+    "enrichment_review_status",
     "detected_announcement_time_seconds",
     "timestamp_seconds",
     "timestamp_hhmmss",
@@ -55,6 +64,8 @@ class PipelineResult:
     candidates: list[Candidate]
     runs: list[dict]
     log: list[dict] = field(default_factory=list)
+    athletes: list[dict] = field(default_factory=list)
+    gyms: list[dict] = field(default_factory=list)
 
 
 def _now() -> str:
@@ -84,8 +95,16 @@ def _candidate_to_run(c: Candidate, video: VideoConfig, order: int) -> dict:
         "athlete_name_raw": c.athlete_name_raw,
         "athlete_name_clean": c.athlete_name_clean,
         "gym_raw": c.gym_raw,
+        "gym_normalized": "",
         "city": c.city,
         "state": c.state,
+        "country": "",
+        "athlete_id": "",
+        "matched_athlete_name": "",
+        "athlete_match_status": "",
+        "athlete_match_score": "",
+        "enrichment_source": "",
+        "enrichment_review_status": "",
         "detected_announcement_time_seconds": int(round(detected)),
         "timestamp_seconds": ts,
         "timestamp_hhmmss": hhmmss(ts),
@@ -98,7 +117,9 @@ def _candidate_to_run(c: Candidate, video: VideoConfig, order: int) -> dict:
     }
 
 
-def run_pipeline(video: VideoConfig, force: bool = False) -> PipelineResult:
+def run_pipeline(
+    video: VideoConfig, force: bool = False, index_db: Path | None = None
+) -> PipelineResult:
     log: list[dict] = []
 
     def step(name: str, status: str, **extra):
@@ -126,4 +147,10 @@ def run_pipeline(video: VideoConfig, force: bool = False) -> PipelineResult:
     step("build_runs", "ok", rows_created=len(runs),
          warnings=f"{needs_review} low-confidence rows")
 
-    return PipelineResult(video, meta, lines, candidates, runs, log)
+    athletes, gyms = enrich_result(runs, index_db=index_db)
+    matched = sum(1 for r in runs
+                  if r["athlete_match_status"] in ("verified", "high_confidence"))
+    step("enrich_runs", "ok", rows_created=len(athletes),
+         notes=f"{matched}/{len(runs)} athletes auto-filled; {len(gyms)} gyms")
+
+    return PipelineResult(video, meta, lines, candidates, runs, log, athletes, gyms)

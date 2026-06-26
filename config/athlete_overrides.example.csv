@@ -1,0 +1,17 @@
+# Manual athlete corrections. Copy to athlete_overrides.csv (git-ignored) and
+# edit with REAL data locally. Keyed on athlete_name_clean (matched case- and
+# accent-insensitively against the Runs tab). Any row here -> match status
+# "verified" and overrides fuzzy matching + gym normalization on every run.
+#
+# Columns (all optional except athlete_name_clean):
+#   athlete_name_clean   the name as it appears in the Runs tab
+#   division, gender     context (for your own reference / future filtering)
+#   athlete_id           WNL/NinjaWorks id, if known
+#   matched_athlete_name canonical display name to show
+#   gym_normalized       gym to assign (this is how you make gym filtering work
+#                        for an athlete whose gym was never announced on-air)
+#   city, state, country location to assign
+#   reviewer_notes       why
+athlete_name_clean,division,gender,athlete_id,matched_athlete_name,gym_normalized,city,state,country,reviewer_notes
+Jane Example,Preteen,Female,123456,Jane Example,Example Ninja Gym,Columbus,Ohio,USA,Confirmed by coach
+Alex Sample,Preteen,Female,,Alex Sample,Sample Ninja Warehouse,,Texas,USA,Known gym; not announced on stream

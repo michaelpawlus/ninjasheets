@@ -13,6 +13,10 @@ wheels/
 # repo. Ship config/videos.example.yaml instead; copy it to videos.yaml locally.
 /config/videos.yaml
 
+# Manual athlete corrections map real names (minors) -> gym/athlete_id. Keep the
+# real file local; commit only config/athlete_overrides.example.csv (synthetic).
+/config/athlete_overrides.csv
+
 # Generated/raw data -- large, regenerable, and (for output) shared only to
 # private channels. Nothing under data/ is committed.
 /data/
