@@ -20,6 +20,9 @@ from .pipeline import RUN_COLUMNS, PipelineResult
 # Runs columns surfaced first for the parent/coach workflow.
 RUNS_DISPLAY_ORDER = [
     "athlete_name_clean",
+    "matched_athlete_name",
+    "athlete_match_status",
+    "gym_normalized",
     "gym_raw",
     "city",
     "state",
@@ -205,8 +208,8 @@ def build_workbook(result: PipelineResult, output_path: Path) -> Path:
     _build_runs(wb.create_sheet("Runs"), result)
     _build_videos(wb.create_sheet("Videos"), result)
     _build_transcript_raw(wb.create_sheet("Transcript Raw"), result)
-    _write_table(wb.create_sheet("Athletes"), ATHLETE_COLUMNS, [])
-    _write_table(wb.create_sheet("Gyms"), GYM_COLUMNS, [])
+    _write_table(wb.create_sheet("Athletes"), ATHLETE_COLUMNS, result.athletes)
+    _write_table(wb.create_sheet("Gyms"), GYM_COLUMNS, result.gyms)
     _write_table(wb.create_sheet("Corrections"), CORRECTION_COLUMNS, [])
     _write_table(wb.create_sheet("Processing Log"), LOG_COLUMNS, result.log)
 

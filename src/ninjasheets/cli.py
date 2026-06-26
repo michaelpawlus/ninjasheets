@@ -28,6 +28,13 @@ def _err(msg: str) -> None:
     print(msg, file=sys.stderr)
 
 
+def _count(rows: list[dict], field: str) -> dict[str, int]:
+    out: dict[str, int] = {}
+    for r in rows:
+        out[r.get(field, "") or "(none)"] = out.get(r.get(field, "") or "(none)", 0) + 1
+    return out
+
+
 def _write_runs_csv(runs: list[dict], path: Path) -> Path:
     path.parent.mkdir(parents=True, exist_ok=True)
     with path.open("w", newline="") as f:
@@ -53,6 +60,10 @@ def process(
     video_id: str = typer.Option(..., "--video-id"),
     force: bool = typer.Option(False, "--force", help="Re-download raw sources."),
     output: Path = typer.Option(None, "--output", help="Workbook path (.xlsx)."),
+    athlete_index: Path = typer.Option(
+        None, "--athlete-index",
+        help="Path to the WNL-Athlete-Video-Index .db (default: sibling repo).",
+    ),
     as_json: bool = typer.Option(False, "--json"),
 ):
     """Process one configured video into an .xlsx workbook + runs.csv."""
@@ -63,7 +74,7 @@ def process(
         print(json.dumps(payload)) if as_json else _err(str(e))
         raise typer.Exit(2)
 
-    result = run_pipeline(video, force=force)
+    result = run_pipeline(video, force=force, index_db=athlete_index)
 
     root = project_root()
     out_xlsx = output or (root / "data" / "output" / f"ninjasheets_{video_id}.xlsx")
@@ -80,6 +91,9 @@ def process(
             c: sum(1 for r in result.runs if r["source_confidence"] == c)
             for c in ("high", "medium", "low")
         },
+        "by_match_status": _count(result.runs, "athlete_match_status"),
+        "athletes": len(result.athletes),
+        "gyms": len(result.gyms),
         "workbook": str(out_xlsx),
         "runs_csv": str(csv_path),
     }
@@ -88,15 +102,29 @@ def process(
     else:
         _err(f"Processed {video_id}: {summary['candidate_runs']} runs "
              f"({summary['by_confidence']}) -> {out_xlsx}")
+        _err(f"Enrichment: {summary['by_match_status']}; "
+             f"{summary['athletes']} athletes, {summary['gyms']} gyms.")
 
 
 @app.command("export")
 def export(
     input_csv: Path = typer.Option(..., "--input", help="runs.csv to load."),
     output: Path = typer.Option(..., "--output", help="Workbook path (.xlsx)."),
+    athlete_index: Path = typer.Option(
+        None, "--athlete-index",
+        help="Path to the WNL-Athlete-Video-Index .db (default: sibling repo).",
+    ),
+    no_enrich: bool = typer.Option(
+        False, "--no-enrich", help="Skip re-running enrichment; export rows as-is."
+    ),
 ):
-    """Rebuild a workbook from an already-processed runs.csv (review-friendly)."""
+    """Rebuild a workbook from an already-processed runs.csv (review-friendly).
+
+    Re-runs enrichment by default so edits to config/athlete_overrides.csv and
+    config/gym_aliases.csv take effect on every rebuild (spec §12.3).
+    """
     from .config import get_video
+    from .enrichment import enrich_result
     from .pipeline import PipelineResult
 
     rows = list(csv.DictReader(input_csv.open()))
@@ -104,9 +132,14 @@ def export(
         _err("No rows in input CSV.")
         raise typer.Exit(1)
     video = get_video(rows[0]["video_id"])
-    result = PipelineResult(video, {}, [], [], rows, [])
+    athletes: list[dict] = []
+    gyms: list[dict] = []
+    if not no_enrich:
+        athletes, gyms = enrich_result(rows, index_db=athlete_index)
+    result = PipelineResult(video, {}, [], [], rows, [], athletes, gyms)
     build_workbook(result, output)
-    _err(f"Wrote {output} from {len(rows)} rows.")
+    _err(f"Wrote {output} from {len(rows)} rows "
+         f"({len(athletes)} athletes, {len(gyms)} gyms).")
 
 
 def main() -> None:
