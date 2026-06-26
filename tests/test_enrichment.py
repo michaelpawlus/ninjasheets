@@ -5,7 +5,9 @@ from __future__ import annotations
 from ninjasheets.enrichment import (
     GymInfo,
     RefAthlete,
+    dedupe_roster,
     enrich_runs,
+    load_overrides,
     match_athlete,
     normalize_gym,
     normalize_name,
@@ -94,6 +96,37 @@ def test_normalize_gym_uses_alias_then_falls_back_to_raw():
     unknown = normalize_gym("Mystery Ninja", aliases)
     assert unknown.gym_normalized == "Mystery Ninja"
     assert normalize_gym("", aliases).gym_normalized == ""
+
+
+def test_dedupe_roster_keeps_distinct_divisions():
+    # Same person across two divisions must survive as two rows so the
+    # division filter can still find the right one.
+    pre = _ref("Sam Twin", "Sam", "111")
+    teen = RefAthlete(
+        full_name="Sam Twin", first_name="Sam", athlete_id="222",
+        division="Teen", gender="Female",
+        full_norm=normalize_name("Sam Twin"), first_norm=normalize_name("Sam"),
+    )
+    out = dedupe_roster([pre, teen, _ref("Sam Twin", "Sam", "111")])
+    divisions = sorted(r.division for r in out)
+    assert divisions == ["Preteen", "Teen"]
+
+    teen_match = match_athlete("Sam Twin", "Teen", "Female", out)
+    assert teen_match.athlete_id == "222"
+
+
+def test_load_overrides_skips_template_comment_lines(tmp_path):
+    # Mirrors the committed .example: leading '#' instructions then header.
+    p = tmp_path / "athlete_overrides.csv"
+    p.write_text(
+        "# instructions line one\n"
+        "# columns below\n"
+        "athlete_name_clean,athlete_id,gym_normalized\n"
+        "Jane Example,1001,Example Ninja Gym\n"
+    )
+    overrides = load_overrides(p)
+    assert normalize_name("Jane Example") in overrides
+    assert overrides[normalize_name("Jane Example")]["gym_normalized"] == "Example Ninja Gym"
 
 
 def test_enrich_runs_fills_columns_and_builds_tabs():

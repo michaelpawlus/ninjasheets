@@ -206,18 +206,32 @@ def load_reference_roster(
     if known_json_path and Path(known_json_path).exists():
         refs.extend(_load_roster_from_known_json(Path(known_json_path)))
 
-    # De-dup by normalized full name; keep the entry with the richest id/source.
-    by_key: dict[str, RefAthlete] = {}
+    return dedupe_roster(refs)
+
+
+def dedupe_roster(refs: list[RefAthlete]) -> list[RefAthlete]:
+    """Collapse duplicates within (name, division, gender) only.
+
+    The same athlete in different divisions/seasons stays as distinct rows --
+    ``match_athlete`` filters by division/gender, so collapsing across them would
+    discard the valid current-division entry. Within a key, keep the richest
+    id/source and backfill any missing gym/location fields.
+    """
+    by_key: dict[tuple[str, str, str], RefAthlete] = {}
     for ref in refs:
-        existing = by_key.get(ref.full_norm)
+        key = (ref.full_norm, normalize_name(ref.division), normalize_name(ref.gender))
+        existing = by_key.get(key)
         if existing is None:
-            by_key[ref.full_norm] = ref
+            by_key[key] = ref
             continue
         if not existing.athlete_id and ref.athlete_id:
             existing.athlete_id = ref.athlete_id
         if not existing.source_url and ref.source_url:
             existing.source_url = ref.source_url
             existing.source_type = ref.source_type
+        for col in ("gym_raw", "city", "state", "country"):
+            if not getattr(existing, col) and getattr(ref, col):
+                setattr(existing, col, getattr(ref, col))
     return list(by_key.values())
 
 
@@ -310,6 +324,21 @@ def config_path(name: str) -> Path:
     return project_root() / "config" / name
 
 
+def _read_csv_skip_comments(path: Path) -> list[dict]:
+    """DictReader over a CSV, ignoring blank lines and ``#`` comment lines.
+
+    The committed ``.example`` templates lead with ``#`` instructions; without
+    this, a user who copies the template keeps those lines and csv.DictReader
+    would treat the first comment as the header -- silently dropping every row.
+    """
+    lines = [
+        ln
+        for ln in path.read_text().splitlines()
+        if ln.strip() and not ln.lstrip().startswith("#")
+    ]
+    return list(csv.DictReader(lines)) if lines else []
+
+
 def load_gym_aliases(path: Path | None = None) -> dict[str, GymInfo]:
     """Map a normalized raw gym string -> canonical GymInfo.
 
@@ -323,17 +352,16 @@ def load_gym_aliases(path: Path | None = None) -> dict[str, GymInfo]:
     if not path.exists():
         return {}
     out: dict[str, GymInfo] = {}
-    with path.open(newline="") as f:
-        for row in csv.DictReader(f):
-            raw = (row.get("gym_raw") or "").strip()
-            if not raw:
-                continue
-            out[normalize_name(raw)] = GymInfo(
-                gym_normalized=(row.get("gym_normalized") or raw).strip(),
-                city=(row.get("city") or "").strip(),
-                state=(row.get("state") or "").strip(),
-                country=(row.get("country") or "").strip(),
-            )
+    for row in _read_csv_skip_comments(path):
+        raw = (row.get("gym_raw") or "").strip()
+        if not raw:
+            continue
+        out[normalize_name(raw)] = GymInfo(
+            gym_normalized=(row.get("gym_normalized") or raw).strip(),
+            city=(row.get("city") or "").strip(),
+            state=(row.get("state") or "").strip(),
+            country=(row.get("country") or "").strip(),
+        )
     return out
 
 
@@ -341,19 +369,19 @@ def load_overrides(path: Path | None = None) -> dict[str, dict]:
     """Manual athlete corrections keyed by normalized ``athlete_name_clean``.
 
     The real file (``athlete_overrides.csv``) is git-ignored; only the synthetic
-    ``.example`` is committed. A missing file simply means no overrides.
+    ``.example`` is committed. A missing file simply means no overrides. Leading
+    ``#`` comment lines from the template are ignored.
     """
     if path is None:
         path = config_path("athlete_overrides.csv")
     if not path.exists():
         return {}
     out: dict[str, dict] = {}
-    with path.open(newline="") as f:
-        for row in csv.DictReader(f):
-            name = (row.get("athlete_name_clean") or "").strip()
-            if not name:
-                continue
-            out[normalize_name(name)] = {k: (v or "").strip() for k, v in row.items()}
+    for row in _read_csv_skip_comments(path):
+        name = (row.get("athlete_name_clean") or "").strip()
+        if not name:
+            continue
+        out[normalize_name(name)] = {k: (v or "").strip() for k, v in row.items() if k}
     return out
 
 
